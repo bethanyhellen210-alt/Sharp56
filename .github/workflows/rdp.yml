@@ -1,0 +1,35 @@
+name: Continuous 1-Month Cloud RDP
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Runs automatically every 5 hours and 30 minutes
+    - cron: '30 */5 * * *'
+
+jobs:
+  rdp:
+    runs-on: windows-latest
+    timeout-minutes: 360
+
+    steps:
+      - name: Enable RDP
+        run: |
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 0
+          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+
+      - name: Create user
+        run: |
+          net user elisy "nairobi23." /add
+          net localgroup Administrators elisy /add
+          net localgroup "Remote Desktop Users" elisy /add
+
+      - name: Download Bore Tunnel
+        run: |
+          Invoke-WebRequest -Uri "https://github.com/ekzhang/bore/releases/download/v0.5.0/bore-v0.5.0-x86_64-pc-windows-msvc.zip" -OutFile "$env:USERPROFILE\bore.zip"
+          Expand-Archive -Path "$env:USERPROFILE\bore.zip" -DestinationPath "$env:USERPROFILE\bore" -Force
+
+      - name: Start Tunnel & Keep Alive
+        run: |
+          $borePath = Get-ChildItem -Path "$env:USERPROFILE\bore" -Filter "bore.exe" -Recurse | Select-Object -ExpandProperty FullName
+          & $borePath local 3389 --to bore.pub --port 45444
